@@ -98,8 +98,7 @@ jobs:
         run: |
           mlflow models build-docker \
             -m "MLProject/model_output" \
-            -n "obesity-model" \
-            --enable-mlserver
+            -n "obesity-model"
 
       # ========================================
       # 9. Login to Docker Hub
