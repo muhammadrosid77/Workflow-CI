@@ -1,0 +1,17 @@
+name: obesity_classification
+
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - mlflow
+      - pandas
+      - numpy
+      - scikit-learn
+      - xgboost
+      - matplotlib
+      - seaborn

@@ -1,0 +1,126 @@
+name: CI Training Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+
+  train-and-deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ========================================
+      # 1. Checkout Repository
+      # ========================================
+
+      - name: Run actions/checkout
+        uses: actions/checkout@v3
+
+      # ========================================
+      # 2. Setup Python
+      # ========================================
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ========================================
+      # 3. Check Environment
+      # ========================================
+
+      - name: Check Env
+        run: |
+          python --version
+          pip --version
+          echo "Working directory: $(pwd)"
+          ls -la
+
+      # ========================================
+      # 4. Install Dependencies
+      # ========================================
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install mlflow pandas numpy scikit-learn xgboost matplotlib seaborn
+
+      # ========================================
+      # 5. Run MLflow Project
+      # ========================================
+
+      - name: Run mlflow project
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          cd MLProject
+          mlflow run . --env-manager local
+
+      # ========================================
+      # 6. Get Latest Run ID
+      # ========================================
+
+      - name: Get latest MLflow run_id
+        id: get_run_id
+        run: |
+          RUN_ID=$(cat MLProject/run_id.txt)
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "Latest Run ID: $RUN_ID"
+
+      # ========================================
+      # 7. Upload Artifacts to GitHub
+      # ========================================
+
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifacts
+          path: |
+            MLProject/model_output/
+            MLProject/run_id.txt
+
+      # ========================================
+      # 8. Build Docker Model
+      # ========================================
+
+      - name: Build Docker Model
+        run: |
+          mlflow models build-docker \
+            -m "MLProject/model_output" \
+            -n "obesity-model" \
+            --enable-mlserver
+
+      # ========================================
+      # 9. Login to Docker Hub
+      # ========================================
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ========================================
+      # 10. Tag Docker Image
+      # ========================================
+
+      - name: Tag Docker Image
+        run: |
+          docker tag obesity-model ${{ secrets.DOCKERHUB_USERNAME }}/obesity-model:latest
+          docker tag obesity-model ${{ secrets.DOCKERHUB_USERNAME }}/obesity-model:${{ github.sha }}
+
+      # ========================================
+      # 11. Push Docker Image
+      # ========================================
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/obesity-model:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/obesity-model:${{ github.sha }}
