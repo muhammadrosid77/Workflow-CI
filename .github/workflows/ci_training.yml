@@ -61,8 +61,10 @@ jobs:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
-          cd MLProject
-          python modelling.py --n_estimators 100 --max_depth 6 --learning_rate 0.1
+          python -m mlflow run MLProject \
+            -P n_estimators=100 \ 
+            -P max_depth=6 \
+            -P learning_rate=0.1
 
       # ========================================
       # 6. Get Latest Run ID
