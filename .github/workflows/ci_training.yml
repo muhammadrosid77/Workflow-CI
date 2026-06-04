@@ -12,7 +12,7 @@ jobs:
   train-and-deploy:
 
     runs-on: ubuntu-latest
-
+    Environment: MLFLOW_TRACKING_USERNAME
     steps:
 
       # ========================================
