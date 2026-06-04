@@ -62,7 +62,7 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           cd MLProject
-          mlflow run . --env-manager local
+          python modelling.py --n_estimators 100 --max_depth 6 --learning_rate 0.1
 
       # ========================================
       # 6. Get Latest Run ID
