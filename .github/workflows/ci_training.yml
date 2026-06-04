@@ -62,7 +62,8 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python -m mlflow run MLProject \
-            -P n_estimators=100 \ 
+            --env-manager local \
+            -P n_estimators=100 \
             -P max_depth=6 \
             -P learning_rate=0.1
 
