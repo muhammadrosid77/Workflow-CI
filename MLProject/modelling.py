@@ -1,4 +1,5 @@
 import os
+import shutil
 import argparse
 import pandas as pd
 import numpy as np
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 
 from sklearn.metrics import (
@@ -156,51 +158,32 @@ def evaluate_model(model, X_test, y_test):
 
 
 # ==========================================
-# MAIN
+# TRAIN & LOG MODEL (CI helper)
 # ==========================================
 
-def main():
-
-    # Load & Split
-    X, y = load_data()
-
-    X_train, X_test, y_train, y_test = split_data(
-        X, y
-    )
-
-    # ------------------------------------------
-    # Model: XGBoost (Best from Kriteria 2)
-    # ------------------------------------------
+def train_and_log(
+    model,
+    model_name,
+    params,
+    X_train,
+    X_test,
+    y_train,
+    y_test
+):
 
     print("\n" + "=" * 50)
-    print("TRAINING: XGBoost (CI Pipeline)")
+    print(f"TRAINING: {model_name} (CI Pipeline)")
     print("=" * 50)
 
-    params = {
-        "n_estimators": args.n_estimators,
-        "max_depth": args.max_depth,
-        "learning_rate": args.learning_rate,
-        "subsample": 0.9,
-        "colsample_bytree": 0.7,
-        "min_child_weight": 1,
-        "gamma": 0.1,
-        "random_state": 42,
-        "eval_metric": "mlogloss"
-    }
-
-    print(f"\nParameters: {params}")
-
-    model = XGBClassifier(**params)
-
     with mlflow.start_run(
-        run_name="CI_XGBoost"
+        run_name=f"CI_{model_name}"
     ) as run:
 
         # ----------------------------------
         # Log Parameters
         # ----------------------------------
 
-        mlflow.log_param("model_name", "XGBoost")
+        mlflow.log_param("model_name", model_name)
 
         for key, value in params.items():
             mlflow.log_param(key, value)
@@ -239,7 +222,7 @@ def main():
         # Artifact 1: Classification Report
         # ----------------------------------
 
-        report_path = "classification_report.txt"
+        report_path = f"classification_report_{model_name}.txt"
 
         with open(report_path, "w") as f:
             f.write(report)
@@ -265,9 +248,9 @@ def main():
 
         ax.set_xlabel("Predicted")
         ax.set_ylabel("Actual")
-        ax.set_title("Confusion Matrix - XGBoost CI")
+        ax.set_title(f"Confusion Matrix - {model_name} CI")
 
-        cm_path = "confusion_matrix.png"
+        cm_path = f"confusion_matrix_{model_name}.png"
         fig.savefig(cm_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
 
@@ -278,38 +261,39 @@ def main():
         # Artifact 3: Feature Importance
         # ----------------------------------
 
-        importances = model.feature_importances_
-        feature_names = X_train.columns
+        if hasattr(model, "feature_importances_"):
+            importances = model.feature_importances_
+            feature_names = X_train.columns
 
-        feat_imp = pd.DataFrame({
-            "feature": feature_names,
-            "importance": importances
-        }).sort_values(
-            "importance", ascending=False
-        ).head(15)
+            feat_imp = pd.DataFrame({
+                "feature": feature_names,
+                "importance": importances
+            }).sort_values(
+                "importance", ascending=False
+            ).head(15)
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+            fig, ax = plt.subplots(figsize=(10, 6))
 
-        sns.barplot(
-            data=feat_imp,
-            x="importance",
-            y="feature",
-            hue="feature",
-            palette="viridis",
-            legend=False,
-            ax=ax
-        )
+            sns.barplot(
+                data=feat_imp,
+                x="importance",
+                y="feature",
+                hue="feature",
+                palette="viridis",
+                legend=False,
+                ax=ax
+            )
 
-        ax.set_title("Top 15 Feature Importance - XGBoost CI")
-        ax.set_xlabel("Importance")
-        ax.set_ylabel("Feature")
+            ax.set_title(f"Top 15 Feature Importance - {model_name} CI")
+            ax.set_xlabel("Importance")
+            ax.set_ylabel("Feature")
 
-        fi_path = "feature_importance.png"
-        fig.savefig(fi_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+            fi_path = f"feature_importance_{model_name}.png"
+            fig.savefig(fi_path, dpi=150, bbox_inches="tight")
+            plt.close(fig)
 
-        mlflow.log_artifact(fi_path)
-        os.remove(fi_path)
+            mlflow.log_artifact(fi_path)
+            os.remove(fi_path)
 
         # ----------------------------------
         # Log Model to MLflow
@@ -320,38 +304,133 @@ def main():
             artifact_path="model"
         )
 
-        # ----------------------------------
-        # Save Model Locally (for Docker)
-        # ----------------------------------
-
-        model_output_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "model_output"
-        )
-
-        mlflow.sklearn.save_model(
-            model,
-            model_output_path
-        )
-
-        # ----------------------------------
-        # Save Run ID
-        # ----------------------------------
-
         run_id = run.info.run_id
 
-        run_id_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "run_id.txt"
-        )
+    return model, metrics, run_id
 
-        with open(run_id_path, "w") as f:
-            f.write(run_id)
 
-        print(f"\nRun ID    : {run_id}")
-        print(f"Model saved to: {model_output_path}")
+# ==========================================
+# MAIN
+# ==========================================
 
-        print(f"\n[SUCCESS] XGBoost CI logged to MLflow!")
+def main():
+
+    # Load & Split
+    X, y = load_data()
+
+    X_train, X_test, y_train, y_test = split_data(
+        X, y
+    )
+
+    results = {}
+
+    # ------------------------------------------
+    # Model 1: Random Forest
+    # ------------------------------------------
+
+    rf_params = {
+        "n_estimators": args.n_estimators,
+        "max_depth": args.max_depth if args.max_depth > 0 else None,
+        "min_samples_split": 2,
+        "min_samples_leaf": 1,
+        "random_state": 42
+    }
+
+    rf_model = RandomForestClassifier(
+        **rf_params
+    )
+
+    rf_model, rf_metrics, rf_run_id = train_and_log(
+        model=rf_model,
+        model_name="RandomForest",
+        params=rf_params,
+        X_train=X_train,
+        X_test=X_test,
+        y_train=y_train,
+        y_test=y_test
+    )
+
+    results["RandomForest"] = (rf_model, rf_metrics, rf_run_id)
+
+    # ------------------------------------------
+    # Model 2: XGBoost
+    # ------------------------------------------
+
+    xgb_params = {
+        "n_estimators": args.n_estimators,
+        "max_depth": args.max_depth,
+        "learning_rate": args.learning_rate,
+        "subsample": 0.9,
+        "colsample_bytree": 0.7,
+        "min_child_weight": 1,
+        "gamma": 0.1,
+        "random_state": 42,
+        "eval_metric": "mlogloss"
+    }
+
+    xgb_model = XGBClassifier(**xgb_params)
+
+    xgb_model, xgb_metrics, xgb_run_id = train_and_log(
+        model=xgb_model,
+        model_name="XGBoost",
+        params=xgb_params,
+        X_train=X_train,
+        X_test=X_test,
+        y_train=y_train,
+        y_test=y_test
+    )
+
+    results["XGBoost"] = (xgb_model, xgb_metrics, xgb_run_id)
+
+    # ------------------------------------------
+    # Compare & Choose Best Model
+    # ------------------------------------------
+
+    best_model_name = "XGBoost"
+    if results["RandomForest"][1]["accuracy"] >= results["XGBoost"][1]["accuracy"]:
+        best_model_name = "RandomForest"
+
+    best_model, best_metrics, best_run_id = results[best_model_name]
+
+    print("\n" + "=" * 50)
+    print("CI SELECTION RESULTS")
+    print("=" * 50)
+    print(f"RandomForest Accuracy: {results['RandomForest'][1]['accuracy']:.4f}")
+    print(f"XGBoost Accuracy     : {results['XGBoost'][1]['accuracy']:.4f}")
+    print(f"Selected Best Model  : {best_model_name}")
+    print("=" * 50)
+
+    # ----------------------------------
+    # Save Best Model Locally (for Docker)
+    # ----------------------------------
+
+    model_output_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "model_output"
+    )
+
+    if os.path.exists(model_output_path):
+        shutil.rmtree(model_output_path)
+
+    mlflow.sklearn.save_model(
+        best_model,
+        model_output_path
+    )
+
+    # ----------------------------------
+    # Save Run ID
+    # ----------------------------------
+
+    run_id_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "run_id.txt"
+    )
+
+    with open(run_id_path, "w") as f:
+        f.write(best_run_id)
+
+    print(f"\nRun ID    : {best_run_id}")
+    print(f"Model saved to: {model_output_path}")
 
     print("\n" + "=" * 50)
     print("CI TRAINING COMPLETED")
