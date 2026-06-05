@@ -51,28 +51,20 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-# # ==========================================
-# # DAGSHUB & MLFLOW CONFIGURATION
-# # ==========================================
+# ==========================================
+# DAGSHUB & MLFLOW CONFIGURATION
+# ==========================================
 
-# os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv(
-#     "MLFLOW_TRACKING_USERNAME", "muhammadrosid77"
-# )
+MLFLOW_TRACKING_URI = (
+    "https://dagshub.com/muhammadrosid77/"
+    "obesity_clasification.mlflow"
+)
 
-# os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv(
-#     "MLFLOW_TRACKING_PASSWORD", "da2970cf9b321338c0f70f48816627787dde5122"
-# )
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-# MLFLOW_TRACKING_URI = (
-#     "https://dagshub.com/muhammadrosid77/"
-#     "obesity_clasification.mlflow"
-# )
+EXPERIMENT_NAME = "Obesity_Classification_CI"
 
-# mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-
-# EXPERIMENT_NAME = "Obesity_Classification_CI"
-
-# mlflow.set_experiment(EXPERIMENT_NAME)
+mlflow.set_experiment(EXPERIMENT_NAME)
 
 
 # ==========================================
