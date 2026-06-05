@@ -62,6 +62,7 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python -m mlflow run MLProject \
+            --experiment-name "Obesity_Classification_CI" \
             --env-manager local \
             -P n_estimators=100 \
             -P max_depth=6 \

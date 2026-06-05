@@ -64,7 +64,8 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 EXPERIMENT_NAME = "Obesity_Classification_CI"
 
-mlflow.set_experiment(EXPERIMENT_NAME)
+if "MLFLOW_RUN_ID" not in os.environ:
+    mlflow.set_experiment(EXPERIMENT_NAME)
 
 
 # ==========================================
