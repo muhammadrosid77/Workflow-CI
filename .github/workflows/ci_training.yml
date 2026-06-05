@@ -83,7 +83,7 @@ jobs:
       # 7. Upload Artifacts to GitHub
       # ========================================
 
-      - name: Upload model artifacts
+      - name: Upload to github
         uses: actions/upload-artifact@v4
         with:
           name: model-artifacts
